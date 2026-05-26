@@ -1,0 +1,174 @@
+"""
+====================================================
+  RABIN–KARP ALGORITHM
+====================================================
+  Technique  : Rolling Hash (Polynomial Hashing)
+  Best Case  : O(n + m)
+  Worst Case : O(n × m)  [hash collisions in every window]
+  Where      : n = length of text, m = length of pattern
+====================================================
+"""
+
+# Prime modulus to reduce hash collisions
+PRIME = 101
+# Number of characters in the alphabet (ASCII)
+BASE  = 256
+
+
+def compute_hash(string: str, length: int) -> int:
+    """Compute the polynomial hash for the first `length` characters."""
+    h = 0
+    for i in range(length):
+        h = (h * BASE + ord(string[i])) % PRIME
+    return h
+
+
+def rabin_karp_search(
+    text: str,
+    pattern: str,
+    case_sensitive: bool = True,
+    base: int = BASE,
+    prime: int = PRIME,
+) -> dict:
+    """
+    Rabin–Karp Pattern Searching using Rolling Hash.
+
+    Instead of comparing every character in a window, computes a hash
+    of the current window and compares it with the pattern hash.
+    On a hash match, performs a character-level verification to handle
+    spurious hits (hash collisions).
+
+    Args:
+        text           : The document / haystack string.
+        pattern        : The keyword / needle to search for.
+        case_sensitive : If False, search is case-insensitive.
+        base           : Alphabet size for hashing (default 256).
+        prime          : Prime modulus to limit hash values.
+
+    Returns:
+        A dict with positions, match count, comparisons, hash hits,
+        and spurious (false-positive) hit count.
+    """
+    if not case_sensitive:
+        text    = text.lower()
+        pattern = pattern.lower()
+
+    n             = len(text)
+    m             = len(pattern)
+    positions     = []
+    comparisons   = 0
+    hash_hits     = 0       # Windows where hash matched
+    spurious_hits = 0       # Hash matched but characters did NOT
+
+    if m > n:
+        return {
+            "algorithm"    : "Rabin–Karp Algorithm",
+            "pattern"      : pattern,
+            "positions"    : [],
+            "total_matches": 0,
+            "comparisons"  : 0,
+            "hash_hits"    : 0,
+            "spurious_hits": 0,
+        }
+
+    # h = base^(m-1) % prime  — used to remove the leading digit of the window
+    h = pow(base, m - 1, prime)
+
+    pattern_hash  = 0
+    window_hash   = 0
+
+    # Compute initial hashes for pattern and first window of text
+    for i in range(m):
+        pattern_hash = (base * pattern_hash + ord(pattern[i])) % prime
+        window_hash  = (base * window_hash  + ord(text[i]))    % prime
+
+    # Slide the window over the text
+    for i in range(n - m + 1):
+        # ── Hash comparison (O(1)) ──────────────────────────────
+        if window_hash == pattern_hash:
+            hash_hits += 1
+            # ── Character-by-character verification (O(m)) ───────
+            match = True
+            for j in range(m):
+                comparisons += 1
+                if text[i + j] != pattern[j]:
+                    match = False
+                    spurious_hits += 1
+                    break
+
+            if match:
+                positions.append(i)
+
+        # ── Rolling hash: slide window one position to the right ─
+        if i < n - m:
+            window_hash = (
+                base * (window_hash - ord(text[i]) * h) + ord(text[i + m])
+            ) % prime
+
+            # Keep hash non-negative
+            if window_hash < 0:
+                window_hash += prime
+
+    return {
+        "algorithm"    : "Rabin–Karp Algorithm",
+        "pattern"      : pattern,
+        "positions"    : positions,
+        "total_matches": len(positions),
+        "comparisons"  : comparisons,
+        "hash_hits"    : hash_hits,
+        "spurious_hits": spurious_hits,
+    }
+
+
+def highlight_matches(text: str, pattern: str, positions: list) -> str:
+    """Return the text with matched positions marked by >>> <<<."""
+    if not positions:
+        return text
+
+    result   = []
+    prev_end = 0
+    m        = len(pattern)
+
+    for pos in sorted(positions):
+        result.append(text[prev_end:pos])
+        result.append(f">>>{text[pos:pos+m]}<<<")
+        prev_end = pos + m
+
+    result.append(text[prev_end:])
+    return "".join(result)
+
+
+# ──────────────────────────────────────────────
+#  DEMO
+# ──────────────────────────────────────────────
+if __name__ == "__main__":
+    sample_text = (
+        "Pattern matching is a fundamental technique in computer science. "
+        "Pattern matching helps search engines locate relevant content. "
+        "Efficient pattern matching reduces computation time significantly."
+    )
+    search_pattern = "pattern matching"
+
+    print("=" * 60)
+    print("  RABIN–KARP ALGORITHM  (Rolling Hash)")
+    print("=" * 60)
+    print(f"\n  Text    : {sample_text[:60]}...")
+    print(f"  Pattern : '{search_pattern}'")
+    print(f"  Base    : {BASE}  |  Prime : {PRIME}")
+    print("-" * 60)
+
+    result = rabin_karp_search(sample_text, search_pattern, case_sensitive=False)
+
+    print(f"\n  Total Matches  : {result['total_matches']}")
+    print(f"  Positions      : {result['positions']}")
+    print(f"  Hash Hits      : {result['hash_hits']}  (windows with matching hash)")
+    print(f"  Spurious Hits  : {result['spurious_hits']}  (false positives caught by verify step)")
+    print(f"  Comparisons    : {result['comparisons']}")
+    print(f"\n  Time Complexity : O(n + m) avg  |  O(n × m) worst  where n={len(sample_text)}, m={len(search_pattern)}")
+
+    print("\n--- Highlighted Text ---")
+    highlighted = highlight_matches(
+        sample_text.lower(), search_pattern.lower(), result["positions"]
+    )
+    print(highlighted)
+    print("=" * 60)
