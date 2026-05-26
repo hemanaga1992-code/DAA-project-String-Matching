@@ -1,0 +1,107 @@
+"""
+====================================================
+  NAÏVE PATTERN MATCHING ALGORITHM
+====================================================
+  Technique  : Sequential / Brute-Force Comparison
+  Best Case  : O(n)
+  Worst Case : O(n * m)
+  Where      : n = length of text, m = length of pattern
+====================================================
+"""
+
+def naive_search(text: str, pattern: str, case_sensitive: bool = True) -> dict:
+    """
+    Naïve (Brute-Force) Pattern Matching.
+
+    Slides the pattern over the text one position at a time and
+    checks character-by-character whether a match exists.
+
+    Args:
+        text           : The document / haystack string.
+        pattern        : The keyword / needle to search for.
+        case_sensitive : If False, search is case-insensitive.
+
+    Returns:
+        A dict with match positions, total count, and comparisons made.
+    """
+    if not case_sensitive:
+        text    = text.lower()
+        pattern = pattern.lower()
+
+    n            = len(text)
+    m            = len(pattern)
+    positions    = []
+    comparisons  = 0
+
+    # Slide the pattern over every possible starting position
+    for i in range(n - m + 1):
+        j = 0
+        # Compare pattern characters one by one
+        while j < m:
+            comparisons += 1
+            if text[i + j] == pattern[j]:
+                j += 1
+            else:
+                break           # Mismatch – move window forward
+
+        if j == m:              # All m characters matched
+            positions.append(i)
+
+    return {
+        "algorithm"   : "Naïve Pattern Matching",
+        "pattern"     : pattern,
+        "positions"   : positions,
+        "total_matches": len(positions),
+        "comparisons" : comparisons,
+    }
+
+
+def highlight_matches(text: str, pattern: str, positions: list) -> str:
+    """Return the text with matched positions marked by >>> <<<."""
+    if not positions:
+        return text
+
+    result   = []
+    prev_end = 0
+    m        = len(pattern)
+
+    for pos in sorted(positions):
+        result.append(text[prev_end:pos])            # text before match
+        result.append(f">>>{text[pos:pos+m]}<<<")   # highlighted match
+        prev_end = pos + m
+
+    result.append(text[prev_end:])                  # remaining text
+    return "".join(result)
+
+
+# ──────────────────────────────────────────────
+#  DEMO
+# ──────────────────────────────────────────────
+if __name__ == "__main__":
+    sample_text = (
+        "Pattern matching is a fundamental technique in computer science. "
+        "Pattern matching helps search engines locate relevant content. "
+        "Efficient pattern matching reduces computation time significantly."
+    )
+    search_pattern = "pattern matching"
+
+    print("=" * 60)
+    print("  NAÏVE PATTERN MATCHING ALGORITHM")
+    print("=" * 60)
+    print(f"\n  Text    : {sample_text[:60]}...")
+    print(f"  Pattern : '{search_pattern}'")
+    print("-" * 60)
+
+    # Case-insensitive search
+    result = naive_search(sample_text, search_pattern, case_sensitive=False)
+
+    print(f"\n  Total Matches : {result['total_matches']}")
+    print(f"  Positions     : {result['positions']}")
+    print(f"  Comparisons   : {result['comparisons']}")
+    print(f"\n  Time Complexity (Best)  : O(n)")
+    print(f"  Time Complexity (Worst) : O(n × m)  where n={len(sample_text)}, m={len(search_pattern)}")
+
+    print("\n--- Highlighted Text ---")
+    highlighted = highlight_matches(sample_text.lower(), search_pattern.lower(), result["positions"])
+    print(highlighted)
+    print("=" * 60)
