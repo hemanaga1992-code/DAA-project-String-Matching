@@ -1,0 +1,252 @@
+"""
+====================================================
+  BOYER–MOORE ALGORITHM
+====================================================
+  Technique  : Bad Character Heuristic + Good Suffix Heuristic
+  Best Case  : O(n / m)  [pattern longer, fewer comparisons]
+  Worst Case : O(n × m)  [all same characters]
+  Where      : n = length of text, m = length of pattern
+
+  NOTE: This implementation uses the Bad Character heuristic.
+        The Good Suffix heuristic is included as an extension.
+====================================================
+"""
+
+
+# ══════════════════════════════════════════════════════
+#  PREPROCESSING — Bad Character Table
+# ══════════════════════════════════════════════════════
+
+def build_bad_char_table(pattern: str) -> dict:
+    """
+    Build the Bad Character Table.
+
+    For each character in the pattern, store its LAST (rightmost)
+    occurrence index. On a mismatch, this lets BM skip the window
+    forward so the mismatching text character aligns with its last
+    known position in the pattern (or skip past the pattern entirely).
+
+    Args:
+        pattern : The search keyword.
+
+    Returns:
+        bad_char : dict mapping character → last index in pattern.
+                   Characters not in pattern default to -1 (handled at call site).
+    """
+    bad_char = {}
+    for i, ch in enumerate(pattern):
+        bad_char[ch] = i      # Overwrite keeps the RIGHTMOST position
+    return bad_char
+
+
+# ══════════════════════════════════════════════════════
+#  PREPROCESSING — Good Suffix Table  (bonus extension)
+# ══════════════════════════════════════════════════════
+
+def build_good_suffix_table(pattern: str) -> list:
+    """
+    Build the Good Suffix Shift Table.
+
+    When a suffix of the pattern matches text but a mismatch occurs
+    earlier, this table tells how far to shift the pattern so that
+    the known matching suffix still lines up with a valid position.
+
+    Args:
+        pattern : The search keyword.
+
+    Returns:
+        shift   : List of shift values indexed by mismatch position.
+    """
+    m     = len(pattern)
+    shift = [m] * (m + 1)
+    border = [0]  * (m + 1)
+
+    i = m
+    j = m + 1
+    border[i] = j
+
+    while i > 0:
+        while j <= m and pattern[i - 1] != pattern[j - 1]:
+            if shift[j] == m:
+                shift[j] = j - i
+            j = border[j]
+        i -= 1
+        j -= 1
+        border[i] = j
+
+    j = border[0]
+    for i in range(m + 1):
+        if shift[i] == m:
+            shift[i] = j
+        if i == j:
+            j = border[j]
+
+    return shift
+
+
+# ══════════════════════════════════════════════════════
+#  MAIN SEARCH
+# ══════════════════════════════════════════════════════
+
+def boyer_moore_search(
+    text: str,
+    pattern: str,
+    case_sensitive: bool = True,
+    use_good_suffix: bool = True,
+) -> dict:
+    """
+    Boyer–Moore Pattern Searching.
+
+    Compares characters right-to-left within each window, then uses
+    the Bad Character and (optionally) Good Suffix heuristics to skip
+    large portions of the text on mismatch — making it especially fast
+    on long patterns and large alphabets.
+
+    Args:
+        text             : The document / haystack string.
+        pattern          : The keyword / needle to search for.
+        case_sensitive   : If False, search is case-insensitive.
+        use_good_suffix  : Also apply Good Suffix heuristic (stronger).
+
+    Returns:
+        A dict with match positions, total count, comparisons, and
+        total characters skipped via heuristics.
+    """
+    if not case_sensitive:
+        text    = text.lower()
+        pattern = pattern.lower()
+
+    n           = len(text)
+    m           = len(pattern)
+    positions   = []
+    comparisons = 0
+    skips       = 0        # Total characters skipped by heuristics
+
+    if m == 0 or m > n:
+        return {
+            "algorithm"    : "Boyer–Moore Algorithm",
+            "pattern"      : pattern,
+            "positions"    : [],
+            "total_matches": 0,
+            "comparisons"  : 0,
+            "skips"        : 0,
+        }
+
+    # ── Preprocessing ──────────────────────────────────────────────
+    bad_char  = build_bad_char_table(pattern)
+    good_suff = build_good_suffix_table(pattern) if use_good_suffix else None
+
+    # ── Search ─────────────────────────────────────────────────────
+    s = 0   # Window start position in text
+
+    while s <= n - m:
+        j = m - 1   # Start comparing from the rightmost character
+
+        # Compare right-to-left
+        while j >= 0:
+            comparisons += 1
+            if pattern[j] == text[s + j]:
+                j -= 1
+            else:
+                break
+
+        if j < 0:
+            # ── Full match found ────────────────────────────────
+            positions.append(s)
+
+            # Shift to align next possible match
+            if good_suff:
+                shift_amount = good_suff[0]
+            else:
+                shift_amount = m - bad_char.get(text[s + m] if s + m < n else "", -1) - 1
+                shift_amount = max(1, shift_amount)
+        else:
+            # ── Mismatch — compute shift via heuristics ─────────
+            # Bad Character heuristic
+            bc_shift = j - bad_char.get(text[s + j], -1)
+
+            if good_suff:
+                # Good Suffix heuristic
+                gs_shift = good_suff[j + 1]
+                shift_amount = max(bc_shift, gs_shift)
+            else:
+                shift_amount = max(1, bc_shift)
+
+        skips += shift_amount - 1    # Characters actually jumped over
+        s     += shift_amount
+
+    return {
+        "algorithm"    : "Boyer–Moore Algorithm",
+        "pattern"      : pattern,
+        "positions"    : positions,
+        "total_matches": len(positions),
+        "comparisons"  : comparisons,
+        "skips"        : skips,
+    }
+
+
+# ══════════════════════════════════════════════════════
+#  HELPER — Visualise the Bad Character Table
+# ══════════════════════════════════════════════════════
+
+def print_bad_char_table(pattern: str) -> None:
+    table = build_bad_char_table(pattern)
+    print(f"\n  Bad Character Table for '{pattern}':")
+    print(f"  {'Char':<8} {'Last Index'}")
+    print(f"  {'────':<8} {'──────────'}")
+    for ch, idx in sorted(table.items()):
+        print(f"  {repr(ch):<8} {idx}")
+
+
+def highlight_matches(text: str, pattern: str, positions: list) -> str:
+    """Return the text with matched positions marked by >>> <<<."""
+    if not positions:
+        return text
+
+    result   = []
+    prev_end = 0
+    m        = len(pattern)
+
+    for pos in sorted(positions):
+        result.append(text[prev_end:pos])
+        result.append(f">>>{text[pos:pos+m]}<<<")
+        prev_end = pos + m
+
+    result.append(text[prev_end:])
+    return "".join(result)
+
+
+# ──────────────────────────────────────────────
+#  DEMO
+# ──────────────────────────────────────────────
+if __name__ == "__main__":
+    sample_text = (
+        "Pattern matching is a fundamental technique in computer science. "
+        "Pattern matching helps search engines locate relevant content. "
+        "Efficient pattern matching reduces computation time significantly."
+    )
+    search_pattern = "pattern matching"
+
+    print("=" * 60)
+    print("  BOYER–MOORE ALGORITHM  (Bad Char + Good Suffix)")
+    print("=" * 60)
+    print(f"\n  Text    : {sample_text[:60]}...")
+    print(f"  Pattern : '{search_pattern}'")
+    print("-" * 60)
+
+    print_bad_char_table(search_pattern.lower())
+
+    result = boyer_moore_search(sample_text, search_pattern, case_sensitive=False)
+
+    print(f"\n  Total Matches  : {result['total_matches']}")
+    print(f"  Positions      : {result['positions']}")
+    print(f"  Comparisons    : {result['comparisons']}")
+    print(f"  Chars Skipped  : {result['skips']}  (heuristic savings)")
+    print(f"\n  Time Complexity : O(n/m) best  |  O(n × m) worst  where n={len(sample_text)}, m={len(search_pattern)}")
+
+    print("\n--- Highlighted Text ---")
+    highlighted = highlight_matches(
+        sample_text.lower(), search_pattern.lower(), result["positions"]
+    )
+    print(highlighted)
+    print("=" * 60)
